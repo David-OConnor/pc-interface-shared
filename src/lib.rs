@@ -5,17 +5,15 @@
 //! between PC and firmware.
 
 use std::{
-    convert::TryInto,
-    io::{self, Read},
-    thread,
-    time::{self, Duration, Instant},
+    io::{self},
+    time::{Duration, Instant},
 };
 
 use eframe::egui::{self, Color32};
 
 use serialport::{self, SerialPort, SerialPortType};
 
-use anyleaf_usb::{self, MessageType, MSG_START};
+use anyleaf_usb::{self, MessageType, MSG_START, PAYLOAD_START_I};
 
 const FC_SERIAL_NUMBER: &str = "AN";
 
@@ -23,22 +21,13 @@ const BAUD: u32 = 115_200;
 
 const TIMEOUT_MILIS: u64 = 10;
 
-const DISCONNECTED_TIMEOUT_MS: u64 = 1_000;
+pub const DISCONNECTED_TIMEOUT_MS: u64 = 1_000;
 
-/// Convert bytes to a float
-pub fn bytes_to_float(bytes: &[u8]) -> f32 {
-    let bytes: [u8; 4] = bytes.try_into().unwrap();
-    f32::from_bits(u32::from_be_bytes(bytes))
-}
-
-// todo: Connection status in this lib seems like a good idea,
-// todo: But how should we deal with when it can connect to multiple
-// todo device types?
+pub type Port = Box<dyn SerialPort>;
 
 pub enum ConnectionStatus {
     NotConnected,
     Connected,
-    // ConnectedRx,
 }
 
 impl Default for ConnectionStatus {
@@ -48,7 +37,7 @@ impl Default for ConnectionStatus {
 }
 
 impl ConnectionStatus {
-    fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         match self {
             Self::NotConnected => "Not connected",
             Self::Connected => "Connected",
@@ -56,7 +45,7 @@ impl ConnectionStatus {
         }
     }
 
-    fn as_color(&self) -> Color32 {
+    pub fn as_color(&self) -> Color32 {
         match self {
             Self::NotConnected => Color32::YELLOW,
             Self::Connected => Color32::LIGHT_GREEN,
@@ -69,10 +58,11 @@ pub struct SerialInterface {
     /// This `Box<dyn Trait>` is a awk, but part of the `serial_port`. This is for cross-platform
     /// compatibity, since Windows and Linux use different types; the `serial_port` docs are build
     /// for Linux, and don't show the Windows type. (ie `TTYPort vs COMPort`)
-    pub serial_port: Option<Box<dyn SerialPort>>,
+    pub serial_port: Option<Port>,
 }
 
-/// C+P from preflight
+// todo: look into cleaning this, and `get_port()` below up.
+
 impl SerialInterface {
     pub fn new() -> Self {
         if let Ok(ports) = serialport::available_ports() {
@@ -84,13 +74,12 @@ impl SerialInterface {
                                 .timeout(Duration::from_millis(TIMEOUT_MILIS))
                                 .open()
                             {
-                                // }
                                 Ok(port) => {
-                                    // println!("(No access error)");
                                     return Self {
                                         serial_port: Some(port),
                                     };
                                 }
+
                                 Err(serialport::Error { kind, description }) => {
                                     match kind {
                                         // serialport::ErrorKind::Io(io_kind) => {
@@ -110,7 +99,6 @@ impl SerialInterface {
                                     }
                                 }
                             }
-                            // .expect("Failed to open serial port");
                         }
                     }
                 }
@@ -149,46 +137,64 @@ impl Default for StateCommon {
 }
 
 impl StateCommon {
-    /// Send a payload-less command, ie the only useful data being message-type.
-    /// Does not handle responses.
-    pub fn send_cmd<T: MessageType>(&mut self, msg_type: T) -> Result<(), io::Error> {
-         let port = match self.interface.serial_port.as_mut() {
-            Some(p) => p,
+    pub fn get_port(&mut self) -> Result<&mut Port, io::Error> {
+        // todo: If it does'nt work after getting back from Southern Strike, try
+        // todo this:
+        // self.interface = SerialInterface::new();
+
+        // todo: DRY with port. Trouble passing it as a param due to box<dyn
+        match self.interface.serial_port.as_mut() {
+            Some(p) => {
+                self.connection_status = ConnectionStatus::Connected;
+                self.last_response = Instant::now();
+
+                Ok(p)
+            }
             None => {
                 self.connection_status = ConnectionStatus::NotConnected;
 
-                return Err(io::Error::new(
+                Err(io::Error::new(
                     io::ErrorKind::NotConnected,
-                    "Device is not connected.",
-                ));
+                    "Sensor interface is not connected.",
+                ))
             }
-        };
-        
-        send_payload::<T, 3>(msg_type, &[], port)
+        }
+    }
+
+    /// Send a payload-less command, ie the only useful data being message-type.
+    /// Does not handle responses.
+    pub fn send_cmd<T: MessageType>(&mut self, msg_type: T) -> Result<(), io::Error> {
+        let port = self.get_port()?;
+        send_payload::<T, 4>(0, msg_type, &[], port)
     }
 }
 
 /// Send a payload, using our format of standard start byte, message type byte,
 /// payload, then CRC.
+/// `N` is the entire message size. (Can't have it be payload size
+/// due to restrictions)
 pub fn send_payload<T: MessageType, const N: usize>(
+    device_code: u8,
     msg_type: T,
     payload: &[u8],
-    port: &mut Box<dyn SerialPort>,
+    port: &mut Port,
 ) -> Result<(), io::Error> {
     // N is the total packet size.
     let payload_size = msg_type.payload_size();
 
+    // start byte, device type byte, message type byte, payload, CRC.
     let mut tx_buf = [0; N];
 
     tx_buf[0] = MSG_START;
-    tx_buf[1] = msg_type.val();
+    tx_buf[1] = device_code;
+    tx_buf[2] = msg_type.val();
 
-    tx_buf[2..(payload_size + 2)].copy_from_slice(&payload);
+    tx_buf[PAYLOAD_START_I..(payload_size + PAYLOAD_START_I)].copy_from_slice(&payload);
 
-    tx_buf[payload_size + 2] = anyleaf_usb::calc_crc(
+    tx_buf[payload_size + PAYLOAD_START_I] = anyleaf_usb::calc_crc(
         &anyleaf_usb::CRC_LUT,
-        &tx_buf[..payload_size + 2],
-        payload_size as u8 + 2,
+        &tx_buf[..payload_size + PAYLOAD_START_I],
+        payload_size as u8 + PAYLOAD_START_I as u8,
     );
 
     port.write_all(&tx_buf)?;
