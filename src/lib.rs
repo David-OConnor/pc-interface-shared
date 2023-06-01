@@ -1,5 +1,5 @@
 //! This library provides abstractions for use in PC programs that
-//! interact with devices over USB-serial. It's generally used with 
+//! interact with devices over USB-serial. It's generally used with
 //! an egui GUI. It prevents code-duplication.
 //! See the separate module (anyleaf_usb) for code we share
 //! between PC and firmware.
@@ -115,7 +115,6 @@ impl Default for SerialInterface {
     }
 }
 
-
 /// Use this state as a field of application-specific state.
 pub struct StateCommon {
     pub connection_status: ConnectionStatus,
@@ -155,7 +154,7 @@ impl StateCommon {
 
                 Err(io::Error::new(
                     io::ErrorKind::NotConnected,
-                    "Sensor interface is not connected.",
+                    "No device connected",
                 ))
             }
         }
@@ -194,24 +193,26 @@ pub fn send_payload<T: MessageType, const N: usize>(
     tx_buf[payload_size + PAYLOAD_START_I] = anyleaf_usb::calc_crc(
         &anyleaf_usb::CRC_LUT,
         &tx_buf[..payload_size + PAYLOAD_START_I],
-        payload_size as u8 + PAYLOAD_START_I as u8,
+        (payload_size + PAYLOAD_START_I) as u8,
     );
+
+    // println!("Sending: {:?}", tx_buf);
 
     port.write_all(&tx_buf)?;
 
     Ok(())
 }
 
-
-pub fn run<T: eframe::App + 'static>(state: T, window_title: &str, window_width: f32, window_height: f32) -> Result<(), eframe::Error> {
+pub fn run<T: eframe::App + 'static>(
+    state: T,
+    window_title: &str,
+    window_width: f32,
+    window_height: f32,
+) -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
         initial_window_size: Some(egui::vec2(window_width, window_height)),
         ..Default::default()
     };
 
-    eframe::run_native(
-        window_title,
-        options,
-        Box::new(|_cc| Box::new(state)),
-    )
+    eframe::run_native(window_title, options, Box::new(|_cc| Box::new(state)))
 }
