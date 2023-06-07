@@ -5,10 +5,12 @@ edition = "2021"
 
 
 [dependencies]
-serialport = "^4.2.0"
+serialport = "^4.2.1"
 anyleaf_usb = { path = "../anyleaf_usb" }
 
-#winit = "^0.28.1"
+winit = "^0.28.6"
+
+image = "^0.24.5" # For loading the window icon.
 
 eframe = "^0.21.0"
 

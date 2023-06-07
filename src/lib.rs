@@ -6,16 +6,23 @@
 
 use std::{
     io::{self},
+    path::Path,
     time::{Duration, Instant},
 };
 
 use eframe::egui::{self, Color32};
 
+use image;
+
 use serialport::{self, SerialPort, SerialPortType};
+
+// use winit::Window::Icon;
 
 use anyleaf_usb::{self, MessageType, MSG_START, PAYLOAD_START_I};
 
 const FC_SERIAL_NUMBER: &str = "AN";
+// const SLCAN_PRODUCT_NAME: &str = "ArduPilot SLCAN";
+const SLCAN_PRODUCT_KEYWORD: &str = "slcan";
 
 const BAUD: u32 = 115_200;
 
@@ -25,6 +32,7 @@ pub const DISCONNECTED_TIMEOUT_MS: u64 = 1_000;
 
 pub type Port = Box<dyn SerialPort>;
 
+#[derive(Clone, Copy, PartialEq)]
 pub enum ConnectionStatus {
     NotConnected,
     Connected,
@@ -53,65 +61,94 @@ impl ConnectionStatus {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum ConnectionType {
+    Usb,
+    Can,
+}
+
+impl Default for ConnectionType {
+    fn default() -> Self {
+        Self::Usb
+    }
+}
+
 /// This mirrors that in the Python driver
+#[derive(Default)]
 pub struct SerialInterface {
     /// This `Box<dyn Trait>` is a awk, but part of the `serial_port`. This is for cross-platform
     /// compatibity, since Windows and Linux use different types; the `serial_port` docs are build
     /// for Linux, and don't show the Windows type. (ie `TTYPort vs COMPort`)
     pub serial_port: Option<Port>,
+    pub connection_type: ConnectionType,
 }
 
 // todo: look into cleaning this, and `get_port()` below up.
 
 impl SerialInterface {
-    pub fn new() -> Self {
-        if let Ok(ports) = serialport::available_ports() {
-            for port_info in &ports {
-                if let SerialPortType::UsbPort(info) = &port_info.port_type {
-                    if let Some(sn) = &info.serial_number {
-                        if sn == FC_SERIAL_NUMBER {
-                            match serialport::new(&port_info.port_name, BAUD)
-                                .timeout(Duration::from_millis(TIMEOUT_MILIS))
-                                .open()
-                            {
-                                Ok(port) => {
-                                    return Self {
-                                        serial_port: Some(port),
-                                    };
-                                }
+    /// Create a new interface; either USB or CAN, depending on which we find first.
+    pub fn connect() -> Self {
+        let mut connection_type = ConnectionType::Usb;
 
-                                Err(serialport::Error { kind, description }) => {
-                                    match kind {
-                                        // serialport::ErrorKind::Io(io_kind) => {
-                                        //     println!("IO error openin the port");
-                                        // }
-                                        serialport::ErrorKind::NoDevice => {
-                                            // todo: Probably still getting this, but it seems to not
-                                            // todo be a dealbreaker. Eventually deal with it.
-                                            // println!("No device: {:?}", description);
-                                        }
-                                        _ => {
-                                            println!(
-                                                "Error opening the port: {:?} - {:?}",
-                                                kind, description
-                                            );
-                                        }
-                                    }
-                                }
+        let ports = serialport::available_ports();
+        if ports.is_err() {
+            return Self::default();
+        }
+
+        for port_info in &ports.unwrap() {
+            if let SerialPortType::UsbPort(info) = &port_info.port_type {
+                let mut correct_port = false;
+
+                // Indicates a USB connection.
+                if let Some(sn) = &info.serial_number {
+                    if sn == FC_SERIAL_NUMBER {
+                        correct_port = true;
+                    }
+
+                    // Indicates a (Serial) CAN connection.
+                } else if let Some(product_name) = &info.product {
+                    if product_name.to_lowercase().contains(SLCAN_PRODUCT_KEYWORD) {
+                        connection_type = ConnectionType::Can;
+                        correct_port = true;
+                    }
+                }
+                if !correct_port {
+                    continue;
+                }
+
+                match serialport::new(&port_info.port_name, BAUD)
+                    .timeout(Duration::from_millis(TIMEOUT_MILIS))
+                    .open()
+                {
+                    Ok(port) => {
+                        println!("Found USB port");
+                        return Self {
+                            serial_port: Some(port),
+                            connection_type,
+                        };
+                    }
+
+                    Err(serialport::Error { kind, description }) => {
+                        match kind {
+                            // serialport::ErrorKind::Io(io_kind) => {
+                            //     println!("IO error openin the port");
+                            // }
+                            serialport::ErrorKind::NoDevice => {
+                                // todo: Probably still getting this, but it seems to not
+                                // todo be a dealbreaker. Eventually deal with it.
+                                println!("No device: {:?}", description);
+                            }
+                            _ => {
+                                println!("Error opening the port: {:?} - {:?}", kind, description);
                             }
                         }
                     }
                 }
+                break;
             }
         }
 
-        Self { serial_port: None }
-    }
-}
-
-impl Default for SerialInterface {
-    fn default() -> Self {
-        Self::new()
+        Self::default()
     }
 }
 
@@ -136,36 +173,23 @@ impl Default for StateCommon {
 }
 
 impl StateCommon {
+    /// Get the serial port; handles unwrapping.
     pub fn get_port(&mut self) -> Result<&mut Port, io::Error> {
-        // todo: If it does'nt work after getting back from Southern Strike, try
-        // todo this:
-        // self.interface = SerialInterface::new();
-
         // todo: DRY with port. Trouble passing it as a param due to box<dyn
         match self.interface.serial_port.as_mut() {
-            Some(p) => {
-                self.connection_status = ConnectionStatus::Connected;
-                self.last_response = Instant::now();
-
-                Ok(p)
-            }
-            None => {
-                self.connection_status = ConnectionStatus::NotConnected;
-
-                Err(io::Error::new(
-                    io::ErrorKind::NotConnected,
-                    "No device connected",
-                ))
-            }
+            Some(p) => Ok(p),
+            None => Err(io::Error::new(
+                io::ErrorKind::NotConnected,
+                "No device connected",
+            )),
         }
     }
+}
 
-    /// Send a payload-less command, ie the only useful data being message-type.
-    /// Does not handle responses.
-    pub fn send_cmd<T: MessageType>(&mut self, msg_type: T) -> Result<(), io::Error> {
-        let port = self.get_port()?;
-        send_payload::<T, 4>(0, msg_type, &[], port)
-    }
+/// Send a payload-less command, ie the only useful data being message-type.
+/// Does not handle responses.
+pub fn send_cmd<T: MessageType>(port: &mut Port, msg_type: T) -> Result<(), io::Error> {
+    send_payload::<T, 4>(0, msg_type, &[], port)
 }
 
 /// Send a payload, using our format of standard start byte, message type byte,
@@ -203,6 +227,16 @@ pub fn send_payload<T: MessageType, const N: usize>(
     Ok(())
 }
 
+// fn load_icon(path: &Path) -> Result<Icon, ImageError> {
+//     let (icon_rgba, icon_width, icon_height) = {
+//         let image = image::open(path)?.into_rgba8();
+//         let (width, height) = image.dimensions();
+//         let rgba = image.into_raw();
+//         (rgba, width, height)
+//     };
+//     Ok(Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon"))
+// }
+
 pub fn run<T: eframe::App + 'static>(
     state: T,
     window_title: &str,
@@ -211,6 +245,7 @@ pub fn run<T: eframe::App + 'static>(
 ) -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
         initial_window_size: Some(egui::vec2(window_width, window_height)),
+        // icon: load_icon(Path::new("../resources/icon.png")),
         ..Default::default()
     };
 
