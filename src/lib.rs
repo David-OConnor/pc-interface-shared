@@ -4,6 +4,7 @@
 //! See the separate module (anyleaf_usb) for code we share
 //! between PC and firmware.
 
+use std::io::Write;
 use std::{
     io::{self},
     path::Path,
@@ -18,7 +19,7 @@ use serialport::{self, SerialPort, SerialPortType};
 
 // use winit::Window::Icon;
 
-use anyleaf_usb::{self, MessageType, MSG_START, PAYLOAD_START_I};
+use anyleaf_usb::{self, MessageType, DEVICE_CODE_PC, MSG_START, PAYLOAD_START_I};
 
 const FC_SERIAL_NUMBER: &str = "AN";
 // const SLCAN_PRODUCT_NAME: &str = "ArduPilot SLCAN";
@@ -188,8 +189,8 @@ impl StateCommon {
 
 /// Send a payload-less command, ie the only useful data being message-type.
 /// Does not handle responses.
-pub fn send_cmd<T: MessageType>(port: &mut Port, msg_type: T) -> Result<(), io::Error> {
-    send_payload::<T, 4>(0, msg_type, &[], port)
+pub fn send_cmd<T: MessageType>(msg_type: T, port: &mut Port) -> Result<(), io::Error> {
+    send_payload::<T, 4>(msg_type, &[], port)
 }
 
 /// Send a payload, using our format of standard start byte, message type byte,
@@ -197,7 +198,7 @@ pub fn send_cmd<T: MessageType>(port: &mut Port, msg_type: T) -> Result<(), io::
 /// `N` is the entire message size. (Can't have it be payload size
 /// due to restrictions)
 pub fn send_payload<T: MessageType, const N: usize>(
-    device_code: u8,
+    // device_code: u8,
     msg_type: T,
     payload: &[u8],
     port: &mut Port,
@@ -209,7 +210,7 @@ pub fn send_payload<T: MessageType, const N: usize>(
     let mut tx_buf = [0; N];
 
     tx_buf[0] = MSG_START;
-    tx_buf[1] = device_code;
+    tx_buf[1] = DEVICE_CODE_PC;
     tx_buf[2] = msg_type.val();
 
     tx_buf[PAYLOAD_START_I..(payload_size + PAYLOAD_START_I)].copy_from_slice(&payload);
@@ -219,8 +220,6 @@ pub fn send_payload<T: MessageType, const N: usize>(
         &tx_buf[..payload_size + PAYLOAD_START_I],
         (payload_size + PAYLOAD_START_I) as u8,
     );
-
-    // println!("Sending: {:?}", tx_buf);
 
     port.write_all(&tx_buf)?;
 
