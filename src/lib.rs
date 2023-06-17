@@ -50,7 +50,6 @@ impl ConnectionStatus {
         match self {
             Self::NotConnected => "Not connected",
             Self::Connected => "Connected",
-            // Self::ConnectedRx => "Connected to Rx",
         }
     }
 
@@ -122,7 +121,6 @@ impl SerialInterface {
                     .open()
                 {
                     Ok(port) => {
-                        println!("Found USB port");
                         return Self {
                             serial_port: Some(port),
                             connection_type,
