@@ -135,7 +135,7 @@ impl SerialInterface {
                             serialport::ErrorKind::NoDevice => {
                                 // todo: Probably still getting this, but it seems to not
                                 // todo be a dealbreaker. Eventually deal with it.
-                                println!("No device: {:?}", description);
+                                // println!("No device: {:?}", description);
                             }
                             _ => {
                                 println!("Error opening the port: {:?} - {:?}", kind, description);
@@ -196,7 +196,6 @@ pub fn send_cmd<T: MessageType>(msg_type: T, port: &mut Port) -> Result<(), io::
 /// `N` is the entire message size. (Can't have it be payload size
 /// due to restrictions)
 pub fn send_payload<T: MessageType, const N: usize>(
-    // device_code: u8,
     msg_type: T,
     payload: &[u8],
     port: &mut Port,
@@ -211,7 +210,7 @@ pub fn send_payload<T: MessageType, const N: usize>(
     tx_buf[1] = DEVICE_CODE_PC;
     tx_buf[2] = msg_type.val();
 
-    tx_buf[PAYLOAD_START_I..(payload_size + PAYLOAD_START_I)].copy_from_slice(&payload);
+    tx_buf[PAYLOAD_START_I..(payload_size + PAYLOAD_START_I)].copy_from_slice(&payload[..payload_size]);
 
     tx_buf[payload_size + PAYLOAD_START_I] = anyleaf_usb::calc_crc(
         &anyleaf_usb::CRC_LUT,
