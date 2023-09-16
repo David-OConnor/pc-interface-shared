@@ -4,9 +4,8 @@
 //! See the separate module (anyleaf_usb) for code we share
 //! between PC and firmware.
 
-use std::io::Write;
 use std::{
-    io::{self},
+    io::{self, Write},
     path::Path,
     time::{Duration, Instant},
 };
@@ -26,6 +25,7 @@ const FC_SERIAL_NUMBER: &str = "AN";
 const SLCAN_PRODUCT_KEYWORD: &str = "slcan";
 
 const BAUD: u32 = 115_200;
+const BAUD_AIRPORT: u32 = 9_600;
 
 const TIMEOUT_MILIS: u64 = 10;
 
@@ -99,6 +99,8 @@ impl SerialInterface {
             if let SerialPortType::UsbPort(info) = &port_info.port_type {
                 let mut correct_port = false;
 
+                let mut baud = BAUD;
+
                 // Indicates a USB connection.
                 if let Some(sn) = &info.serial_number {
                     if sn == FC_SERIAL_NUMBER {
@@ -112,11 +114,21 @@ impl SerialInterface {
                         correct_port = true;
                     }
                 }
+
+                // todo: Temp for ELRS Airport
+                if let Some(man) = &info.manufacturer {
+                    if man.to_lowercase().contains("wch") {
+                        println!("Connected via Airport");
+                        baud = BAUD_AIRPORT;
+                        correct_port = true;
+                    }
+                }
+
                 if !correct_port {
                     continue;
                 }
 
-                match serialport::new(&port_info.port_name, BAUD)
+                match serialport::new(&port_info.port_name, baud)
                     .timeout(Duration::from_millis(TIMEOUT_MILIS))
                     .open()
                 {
@@ -210,7 +222,8 @@ pub fn send_payload<T: MessageType, const N: usize>(
     tx_buf[1] = DEVICE_CODE_PC;
     tx_buf[2] = msg_type.val();
 
-    tx_buf[PAYLOAD_START_I..(payload_size + PAYLOAD_START_I)].copy_from_slice(&payload[..payload_size]);
+    tx_buf[PAYLOAD_START_I..(payload_size + PAYLOAD_START_I)]
+        .copy_from_slice(&payload[..payload_size]);
 
     tx_buf[payload_size + PAYLOAD_START_I] = anyleaf_usb::calc_crc(
         &anyleaf_usb::CRC_LUT,
@@ -233,15 +246,44 @@ pub fn send_payload<T: MessageType, const N: usize>(
 //     Ok(Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon"))
 // }
 
+fn load_icon(path: &str) -> eframe::IconData {
+    let (icon_rgba, icon_width, icon_height) = {
+        // let icon = include_bytes!(path);
+        let icon = include_bytes!("../../sail_control/resources/icon.png");
+
+        let image = image::load_from_memory(icon)
+            .expect("Failed to open icon path")
+            .into_rgba8();
+
+        let (width, height) = image.dimensions();
+        let rgba = image.into_raw();
+        (rgba, width, height)
+    };
+
+    eframe::IconData {
+        rgba: icon_rgba,
+        width: icon_width,
+        height: icon_height,
+    }
+}
+
 pub fn run<T: eframe::App + 'static>(
     state: T,
     window_title: &str,
     window_width: f32,
     window_height: f32,
+    icon: Option<&str>,
 ) -> Result<(), eframe::Error> {
-    let options = eframe::NativeOptions {
+    let icon_data = match icon {
+        Some(i) => Some(load_icon(i)),
+        None => None,
+    };
+
+    let mut options = eframe::NativeOptions {
         initial_window_size: Some(egui::vec2(window_width, window_height)),
         // icon: load_icon(Path::new("../resources/icon.png")),
+        icon_data,
+        follow_system_theme: false,
         ..Default::default()
     };
 
