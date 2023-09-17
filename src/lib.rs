@@ -5,12 +5,12 @@
 //! between PC and firmware.
 
 use std::{
-    io::{self, Write},
-    path::Path,
+    fs::{self, File},
+    io::{self, Write, Read},
     time::{Duration, Instant},
 };
 
-use eframe::egui::{self, Color32};
+use eframe::{IconData, egui::{self, Color32}};
 
 use image;
 
@@ -248,10 +248,13 @@ pub fn send_payload<T: MessageType, const N: usize>(
 
 fn load_icon(path: &str) -> eframe::IconData {
     let (icon_rgba, icon_width, icon_height) = {
-        // let icon = include_bytes!(path);
-        let icon = include_bytes!("../../sail_control/resources/icon.png");
+        let mut f = File::open(&path).expect("No icon file found.");
+        let metadata = fs::metadata(&path).expect("unable to read metadata");
+        let mut buffer = vec![0; metadata.len() as usize];
+        f.read(&mut buffer).expect("buffer overflow");
 
-        let image = image::load_from_memory(icon)
+        // let image = image::load_from_memory(icon)
+        let image = image::load_from_memory(&buffer)
             .expect("Failed to open icon path")
             .into_rgba8();
 
@@ -260,7 +263,7 @@ fn load_icon(path: &str) -> eframe::IconData {
         (rgba, width, height)
     };
 
-    eframe::IconData {
+    IconData {
         rgba: icon_rgba,
         width: icon_width,
         height: icon_height,
