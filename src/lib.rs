@@ -12,11 +12,7 @@ use std::{
 
 use eframe::{IconData, egui::{self, Color32}};
 
-use image;
-
 use serialport::{self, SerialPort, SerialPortType};
-
-// use winit::Window::Icon;
 
 use anyleaf_usb::{self, MessageType, DEVICE_CODE_PC, MSG_START, PAYLOAD_START_I};
 
@@ -248,12 +244,11 @@ pub fn send_payload<T: MessageType, const N: usize>(
 
 fn load_icon(path: &str) -> eframe::IconData {
     let (icon_rgba, icon_width, icon_height) = {
-        let mut f = File::open(&path).expect("No icon file found.");
-        let metadata = fs::metadata(&path).expect("unable to read metadata");
+        let mut f = File::open(path).expect("No icon file found.");
+        let metadata = fs::metadata(path).expect("unable to read metadata");
         let mut buffer = vec![0; metadata.len() as usize];
-        f.read(&mut buffer).expect("buffer overflow");
+        f.read_exact(&mut buffer).expect("buffer overflow");
 
-        // let image = image::load_from_memory(icon)
         let image = image::load_from_memory(&buffer)
             .expect("Failed to open icon path")
             .into_rgba8();
@@ -277,12 +272,9 @@ pub fn run<T: eframe::App + 'static>(
     window_height: f32,
     icon: Option<&str>,
 ) -> Result<(), eframe::Error> {
-    let icon_data = match icon {
-        Some(i) => Some(load_icon(i)),
-        None => None,
-    };
+    let icon_data = icon.map(load_icon);
 
-    let mut options = eframe::NativeOptions {
+    let options = eframe::NativeOptions {
         initial_window_size: Some(egui::vec2(window_width, window_height)),
         // icon: load_icon(Path::new("../resources/icon.png")),
         icon_data,
