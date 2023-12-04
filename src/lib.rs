@@ -6,18 +6,20 @@
 
 use std::{
     fs::{self, File},
-    io::{self, Write, Read},
+    io::{self, Read, Write},
     time::{Duration, Instant},
 };
 
-use eframe::{IconData, egui::{self, Color32}};
+use eframe::{
+    egui::{self, Color32},
+    IconData,
+};
 
 use serialport::{self, SerialPort, SerialPortType};
 
 use anyleaf_usb::{self, MessageType, DEVICE_CODE_PC, MSG_START, PAYLOAD_START_I};
 
 const FC_SERIAL_NUMBER: &str = "AN";
-// const SLCAN_PRODUCT_NAME: &str = "ArduPilot SLCAN";
 const SLCAN_PRODUCT_KEYWORD: &str = "slcan";
 
 const BAUD: u32 = 115_200;
@@ -242,7 +244,7 @@ pub fn send_payload<T: MessageType, const N: usize>(
 //     Ok(Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon"))
 // }
 
-fn load_icon(path: &str) -> eframe::IconData {
+fn load_icon(path: &str) -> IconData {
     let (icon_rgba, icon_width, icon_height) = {
         let mut f = File::open(path).expect("No icon file found.");
         let metadata = fs::metadata(path).expect("unable to read metadata");
@@ -276,6 +278,7 @@ pub fn run<T: eframe::App + 'static>(
 
     let options = eframe::NativeOptions {
         initial_window_size: Some(egui::vec2(window_width, window_height)),
+        // viewport: egui::ViewportBuilder::default().with_inner_size([window_width, window_height]),
         // icon: load_icon(Path::new("../resources/icon.png")),
         icon_data,
         follow_system_theme: false,
