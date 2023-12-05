@@ -94,11 +94,9 @@ impl SerialInterface {
         }
 
         for port_info in &ports.unwrap() {
+            let mut correct_port = false;
+            let mut baud = BAUD;
             if let SerialPortType::UsbPort(info) = &port_info.port_type {
-                let mut correct_port = false;
-
-                let mut baud = BAUD;
-
                 // Indicates a USB connection.
                 if let Some(sn) = &info.serial_number {
                     if sn == FC_SERIAL_NUMBER {
@@ -121,40 +119,40 @@ impl SerialInterface {
                         correct_port = true;
                     }
                 }
+            }
 
-                if !correct_port {
-                    continue;
+            if !correct_port {
+                continue;
+            }
+
+            match serialport::new(&port_info.port_name, baud)
+                .timeout(Duration::from_millis(TIMEOUT_MILIS))
+                .open()
+            {
+                Ok(port) => {
+                    return Self {
+                        serial_port: Some(port),
+                        connection_type,
+                    };
                 }
 
-                match serialport::new(&port_info.port_name, baud)
-                    .timeout(Duration::from_millis(TIMEOUT_MILIS))
-                    .open()
-                {
-                    Ok(port) => {
-                        return Self {
-                            serial_port: Some(port),
-                            connection_type,
-                        };
-                    }
-
-                    Err(serialport::Error { kind, description }) => {
-                        match kind {
-                            // serialport::ErrorKind::Io(io_kind) => {
-                            //     println!("IO error openin the port");
-                            // }
-                            serialport::ErrorKind::NoDevice => {
-                                // todo: Probably still getting this, but it seems to not
-                                // todo be a dealbreaker. Eventually deal with it.
-                                // println!("No device: {:?}", description);
-                            }
-                            _ => {
-                                println!("Error opening the port: {:?} - {:?}", kind, description);
-                            }
+                Err(serialport::Error { kind, description }) => {
+                    match kind {
+                        // serialport::ErrorKind::Io(io_kind) => {
+                        //     println!("IO error openin the port");
+                        // }
+                        serialport::ErrorKind::NoDevice => {
+                            // todo: Probably still getting this, but it seems to not
+                            // todo be a dealbreaker. Eventually deal with it.
+                            // println!("No device: {:?}", description);
+                        }
+                        _ => {
+                            println!("Error opening the port: {:?} - {:?}", kind, description);
                         }
                     }
                 }
-                break;
             }
+            break;
         }
 
         Self::default()
