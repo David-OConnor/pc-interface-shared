@@ -17,7 +17,8 @@ use eframe::{
 
 use serialport::{self, SerialPort, SerialPortType};
 
-use anyleaf_usb::{self, MessageType, DEVICE_CODE_PC, MSG_START, PAYLOAD_START_I};
+use anyleaf_usb::{self, MessageType, DEVICE_CODE_PC, MSG_START, PAYLOAD_START_I, MsgType};
+use anyleaf_usb::sail_telem::MAVLINK_SIZE;
 
 const FC_SERIAL_NUMBER: &str = "AN";
 const SLCAN_PRODUCT_KEYWORD: &str = "slcan";
@@ -95,7 +96,7 @@ impl SerialInterface {
 
         for port_info in &ports.unwrap() {
             let mut correct_port = false;
-            let mut baud = BAUD;
+            // let mut baud = BAUD;
             if let SerialPortType::UsbPort(info) = &port_info.port_type {
                 // Indicates a USB connection.
                 if let Some(sn) = &info.serial_number {
@@ -112,20 +113,20 @@ impl SerialInterface {
                 }
 
                 // todo: Temp for ELRS Airport
-                if let Some(man) = &info.manufacturer {
-                    if man.to_lowercase().contains("wch") {
-                        println!("Connected via Airport");
-                        baud = BAUD_AIRPORT;
-                        correct_port = true;
-                    }
-                }
+                // if let Some(man) = &info.manufacturer {
+                //     if man.to_lowercase().contains("wch") {
+                //         println!("Connected via Airport");
+                //         baud = BAUD_AIRPORT;
+                //         correct_port = true;
+                //     }
+                // }
             }
 
             if !correct_port {
                 continue;
             }
 
-            match serialport::new(&port_info.port_name, baud)
+            match serialport::new(&port_info.port_name, BAUD)
                 .timeout(Duration::from_millis(TIMEOUT_MILIS))
                 .open()
             {
@@ -201,7 +202,7 @@ pub fn send_cmd<T: MessageType>(msg_type: T, port: &mut Port) -> Result<(), io::
 
 /// Send a payload, using our format of standard start byte, message type byte,
 /// payload, then CRC.
-/// `N` is the entire message size. (Can't have it be payload size
+/// `N` is the entire message size, including the USB header. (Can't have it be payload size
 /// due to restrictions)
 pub fn send_payload<T: MessageType, const N: usize>(
     msg_type: T,
@@ -209,7 +210,11 @@ pub fn send_payload<T: MessageType, const N: usize>(
     port: &mut Port,
 ) -> Result<(), io::Error> {
     // N is the total packet size.
-    let payload_size = msg_type.payload_size();
+    let mut payload_size = msg_type.payload_size();
+
+    if msg_type.val() == MsgType::Telemetry.val() {
+        payload_size = payload[1] as usize + MAVLINK_SIZE;
+    }
 
     // start byte, device type byte, message type byte, payload, CRC.
     let mut tx_buf = [0; N];
