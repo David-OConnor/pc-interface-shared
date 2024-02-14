@@ -10,15 +10,14 @@ use std::{
     time::{Duration, Instant},
 };
 
+use anyleaf_usb::{
+    self, MessageType, MsgType, DEVICE_CODE_PC, MAVLINK_SIZE, MSG_START, PAYLOAD_START_I,
+};
 use eframe::{
     egui::{self, Color32},
     IconData,
 };
-
 use serialport::{self, SerialPort, SerialPortType};
-
-use anyleaf_usb::{self, MessageType, DEVICE_CODE_PC, MSG_START, PAYLOAD_START_I, MsgType};
-use anyleaf_usb::sail_telem::MAVLINK_SIZE;
 
 const FC_SERIAL_NUMBER: &str = "AN";
 const SLCAN_PRODUCT_KEYWORD: &str = "slcan";
