@@ -22,8 +22,7 @@ use serialport::{self, SerialPort, SerialPortType};
 const FC_SERIAL_NUMBER: &str = "AN";
 const SLCAN_PRODUCT_KEYWORD: &str = "slcan";
 
-const BAUD: u32 = 115_200;
-const BAUD_AIRPORT: u32 = 9_600;
+const BAUD: u32 = 460_800;
 
 const TIMEOUT_MILIS: u64 = 10;
 
@@ -110,15 +109,6 @@ impl SerialInterface {
                         correct_port = true;
                     }
                 }
-
-                // todo: Temp for ELRS Airport
-                // if let Some(man) = &info.manufacturer {
-                //     if man.to_lowercase().contains("wch") {
-                //         println!("Connected via Airport");
-                //         baud = BAUD_AIRPORT;
-                //         correct_port = true;
-                //     }
-                // }
             }
 
             if !correct_port {
