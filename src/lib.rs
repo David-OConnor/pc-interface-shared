@@ -13,10 +13,7 @@ use std::{
 use anyleaf_usb::{
     self, MessageType, MsgType, DEVICE_CODE_PC, MAVLINK_SIZE, MSG_START, PAYLOAD_START_I,
 };
-use eframe::{
-    egui::{self, Color32},
-    IconData,
-};
+use eframe::egui::{self, Color32, IconData};
 use serialport::{self, SerialPort, SerialPortType};
 
 const FC_SERIAL_NUMBER: &str = "AN";
@@ -94,7 +91,6 @@ impl SerialInterface {
 
         for port_info in &ports.unwrap() {
             let mut correct_port = false;
-            // let mut baud = BAUD;
             if let SerialPortType::UsbPort(info) = &port_info.port_type {
                 // Indicates a USB connection.
                 if let Some(sn) = &info.serial_number {
@@ -269,11 +265,10 @@ pub fn run<T: eframe::App + 'static>(
     let icon_data = icon.map(load_icon);
 
     let options = eframe::NativeOptions {
-        initial_window_size: Some(egui::vec2(window_width, window_height)),
-        // viewport: egui::ViewportBuilder::default().with_inner_size([window_width, window_height]),
-        // icon: load_icon(Path::new("../resources/icon.png")),
-        icon_data,
-        follow_system_theme: false,
+        // viewport: egui::ViewportBuilder::default().with_inner_size([window_width, window_height]).with_icon(icon_data),
+        // todo: Fix icons.
+        viewport: egui::ViewportBuilder::default().with_inner_size([window_width, window_height]),
+        // follow_system_theme: false,
         ..Default::default()
     };
 
