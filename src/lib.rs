@@ -265,10 +265,11 @@ pub fn run<T: eframe::App + 'static>(
     let icon_data = icon.map(load_icon);
 
     let options = eframe::NativeOptions {
-        // viewport: egui::ViewportBuilder::default().with_inner_size([window_width, window_height]).with_icon(icon_data),
         // todo: Fix icons.
         viewport: egui::ViewportBuilder::default().with_inner_size([window_width, window_height]),
-        // follow_system_theme: false,
+        // icon: load_icon(Path::new("../resources/icon.png")),
+        // icon_data,
+        follow_system_theme: false,
         ..Default::default()
     };
 

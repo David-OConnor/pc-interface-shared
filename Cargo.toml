@@ -12,7 +12,7 @@ winit = "^0.29.4"
 
 image = "^0.24.7" # For loading the window icon.
 
-eframe = "0.26.0"
+eframe = "^0.26.2"
 
 
 # To parse enums from their integer repr
