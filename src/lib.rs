@@ -16,7 +16,6 @@ use anyleaf_usb::{
 use eframe::egui::{self, Color32, IconData};
 use serialport::{self, SerialPort, SerialPortType};
 
-const FC_SERIAL_NUMBER: &str = "AN";
 const SLCAN_PRODUCT_KEYWORD: &str = "slcan";
 
 const BAUD: u32 = 460_800;
@@ -81,7 +80,7 @@ pub struct SerialInterface {
 
 impl SerialInterface {
     /// Create a new interface; either USB or CAN, depending on which we find first.
-    pub fn connect() -> Self {
+    pub fn connect(serial_number: &str) -> Self {
         let mut connection_type = ConnectionType::Usb;
 
         let ports = serialport::available_ports();
@@ -94,7 +93,7 @@ impl SerialInterface {
             if let SerialPortType::UsbPort(info) = &port_info.port_type {
                 // Indicates a USB connection.
                 if let Some(sn) = &info.serial_number {
-                    if sn == FC_SERIAL_NUMBER {
+                    if sn == serial_number {
                         correct_port = true;
                     }
 
