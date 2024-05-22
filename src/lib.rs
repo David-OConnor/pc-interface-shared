@@ -75,11 +75,9 @@ pub struct SerialInterface {
     pub connection_type: ConnectionType,
 }
 
-// todo: look into cleaning this, and `get_port()` below up.
-
 impl SerialInterface {
     /// Create a new interface; either USB or CAN, depending on which we find first.
-    pub fn connect(usb_serial_number: &str) -> Self {
+    pub(crate) fn connect(usb_serial_number: &str) -> Self {
         let mut connection_type = ConnectionType::Usb;
 
         let ports = serialport::available_ports();
@@ -145,6 +143,7 @@ impl SerialInterface {
 
 /// Use this state as a field of application-specific state.
 pub struct StateCommon {
+    pub usb_serial_number: String,
     pub connection_status: ConnectionStatus,
     pub interface: SerialInterface,
     pub last_query: Instant,
@@ -152,21 +151,30 @@ pub struct StateCommon {
     pub last_response: Instant,
 }
 
-impl Default for StateCommon {
-    fn default() -> Self {
+impl StateCommon {
+    pub fn new(usb_serial_number: &str) -> Self {
         Self {
+            usb_serial_number: usb_serial_number.to_owned(),
             connection_status: Default::default(),
             interface: Default::default(),
             last_query: Instant::now(),
             last_response: Instant::now(),
         }
     }
-}
 
-impl StateCommon {
+    /// We use this to re-initialized the serial interface.
+    pub fn connect(&mut self) {
+        self.interface = SerialInterface::connect(&self.usb_serial_number);
+    }
+
     /// Get the serial port; handles unwrapping.
     pub fn get_port(&mut self) -> Result<&mut Port, io::Error> {
-        // todo: DRY with port. Trouble passing it as a param due to box<dyn
+        // If we don't include this line, it seems programs may assume success incorrectly if the
+        // device is disconnected.
+        if self.interface.serial_port.is_none() {
+            self.connect();
+        }
+
         match self.interface.serial_port.as_mut() {
             Some(p) => Ok(p),
             None => Err(io::Error::new(
