@@ -69,7 +69,6 @@ impl Default for ConnectionType {
 /// This mirrors that in the Python driver
 #[derive(Default)]
 pub struct SerialInterface {
-    /// This `Box<dyn Trait>` is a awk, but part of the `serial_port`. This is for cross-platform
     /// compatibity, since Windows and Linux use different types; the `serial_port` docs are build
     /// for Linux, and don't show the Windows type. (ie `TTYPort vs COMPort`)
     pub serial_port: Option<Port>,
@@ -80,7 +79,7 @@ pub struct SerialInterface {
 
 impl SerialInterface {
     /// Create a new interface; either USB or CAN, depending on which we find first.
-    pub fn connect(serial_number: &str) -> Self {
+    pub fn connect(usb_serial_number: &str) -> Self {
         let mut connection_type = ConnectionType::Usb;
 
         let ports = serialport::available_ports();
@@ -93,7 +92,7 @@ impl SerialInterface {
             if let SerialPortType::UsbPort(info) = &port_info.port_type {
                 // Indicates a USB connection.
                 if let Some(sn) = &info.serial_number {
-                    if sn == serial_number {
+                    if sn == usb_serial_number {
                         correct_port = true;
                     }
 
