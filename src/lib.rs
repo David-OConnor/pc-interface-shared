@@ -169,8 +169,7 @@ impl StateCommon {
 
     /// Get the serial port; handles unwrapping.
     pub fn get_port(&mut self) -> Result<&mut Port, io::Error> {
-        // If we don't include this line, it seems programs may assume success incorrectly if the
-        // device is disconnected.
+        self.connect();
         if self.interface.serial_port.is_none() {
             self.connect();
         }
