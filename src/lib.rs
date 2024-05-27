@@ -170,9 +170,9 @@ impl StateCommon {
     /// Get the serial port; handles unwrapping.
     pub fn get_port(&mut self) -> Result<&mut Port, io::Error> {
         self.connect();
-        if self.interface.serial_port.is_none() {
-            self.connect();
-        }
+        // if self.interface.serial_port.is_none() {
+        //     self.connect();
+        // }
 
         match self.interface.serial_port.as_mut() {
             Some(p) => Ok(p),
