@@ -227,39 +227,6 @@ pub fn send_payload<T: MessageType, const N: usize>(
     Ok(())
 }
 
-// fn load_icon(path: &Path) -> Result<Icon, ImageError> {
-//     let (icon_rgba, icon_width, icon_height) = {
-//         let image = image::open(path)?.into_rgba8();
-//         let (width, height) = image.dimensions();
-//         let rgba = image.into_raw();
-//         (rgba, width, height)
-//     };
-//     Ok(Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon"))
-// }
-
-fn load_icon(path: &str) -> IconData {
-    let (icon_rgba, icon_width, icon_height) = {
-        let mut f = File::open(path).expect("No icon file found.");
-        let metadata = fs::metadata(path).expect("unable to read metadata");
-        let mut buffer = vec![0; metadata.len() as usize];
-        f.read_exact(&mut buffer).expect("buffer overflow");
-
-        let image = image::load_from_memory(&buffer)
-            .expect("Failed to open icon path")
-            .into_rgba8();
-
-        let (width, height) = image.dimensions();
-        let rgba = image.into_raw();
-        (rgba, width, height)
-    };
-
-    IconData {
-        rgba: icon_rgba,
-        width: icon_width,
-        height: icon_height,
-    }
-}
-
 pub fn run<T: eframe::App + 'static>(
     state: T,
     window_title: &str,
@@ -267,13 +234,18 @@ pub fn run<T: eframe::App + 'static>(
     window_height: f32,
     icon: Option<&str>,
 ) -> Result<(), eframe::Error> {
-    let icon_data = icon.map(load_icon);
+    let mut viewport =
+        egui::ViewportBuilder::default().with_inner_size([window_width, window_height]);
+
+    if let Some(path) = icon {
+        let icon_bytes: &[u8] = include_bytes!(icon);
+        let icon_data = eframe::icon_data::from_png_bytes(icon_bytes);
+
+        viewport = viewport.with_icon(icon_data.unwrap());
+    }
 
     let options = eframe::NativeOptions {
-        // todo: Fix icons.
-        viewport: egui::ViewportBuilder::default().with_inner_size([window_width, window_height]),
-        // icon: load_icon(Path::new("../resources/icon.png")),
-        // icon_data,
+        viewport,
         follow_system_theme: false,
         ..Default::default()
     };
