@@ -1,18 +1,18 @@
 [package]
 name = "pc_interface_shared"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 
 [dependencies]
-serialport = "^4.2.1"
+serialport = "4.7.2"
 anyleaf_usb = { path = "../anyleaf_usb" }
 
-winit = "^0.29.4"
+winit = "0.30.10"
 
-image = "^0.24.7" # For loading the window icon.
+image = "0.25.6" # For loading the window icon.
 
-eframe = "^0.26.2"
+eframe = "0.31.1"
 
 
 # To parse enums from their integer repr

@@ -5,15 +5,14 @@
 //! between PC and firmware.
 
 use std::{
-    fs::{self, File},
-    io::{self, Read, Write},
+    io::{self, Write},
     time::{Duration, Instant},
 };
 
 use anyleaf_usb::{
     self, MessageType, MsgType, DEVICE_CODE_PC, MAVLINK_SIZE, MSG_START, PAYLOAD_START_I,
 };
-use eframe::egui::{self, Color32, IconData};
+use eframe::egui::{self, Color32};
 use serialport::{self, SerialPort, SerialPortType};
 
 const SLCAN_PRODUCT_KEYWORD: &str = "slcan";
@@ -234,21 +233,24 @@ pub fn run<T: eframe::App + 'static>(
     window_height: f32,
     icon: Option<&str>,
 ) -> Result<(), eframe::Error> {
-    let mut viewport =
-        egui::ViewportBuilder::default().with_inner_size([window_width, window_height]);
+    let mut viewport = egui::ViewportBuilder::default().with_inner_size([window_width, window_height]);
 
     if let Some(path) = icon {
-        let icon_bytes: &[u8] = include_bytes!(icon);
-        let icon_data = eframe::icon_data::from_png_bytes(icon_bytes);
+        // todo: Problem where it requires a string literal.
+        // let icon_bytes: &[u8] = include_bytes!(path);
+        // let icon_data = eframe::icon_data::from_png_bytes(icon_bytes);
 
-        viewport = viewport.with_icon(icon_data.unwrap());
+        // viewport = viewport.with_icon(icon_data.unwrap());
     }
 
     let options = eframe::NativeOptions {
         viewport,
-        follow_system_theme: false,
         ..Default::default()
     };
 
-    eframe::run_native(window_title, options, Box::new(|_cc| Box::new(state)))
+    eframe::run_native(
+        window_title,
+        options,
+        Box::new(|_cc| Ok(Box::new(state))),
+    )
 }
